@@ -11,23 +11,31 @@ async def recognize_song(file_path):
         return f"{out['track']['subtitle']} - {out['track']['title']}"
     return None
 
-def download_music(query, output_path_without_ext):
+def search_track_list(query, limit=30):
+    ydl_opts = {'extract_flat': True, 'quiet': True}
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        try:
+            info = ydl.extract_info(f"scsearch{limit}:{query}", download=False)
+            if info and 'entries' in info:
+                results = []
+                for entry in info['entries']:
+                    results.append({'title': entry.get('title', 'Noma\'lum'), 'url': entry.get('url', '')})
+                return results
+        except Exception:
+            return []
+    return []
+
+def download_music(url_or_query, output_path_without_ext):
     ydl_opts = {
         'format': 'bestaudio/best',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
+        'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
         'outtmpl': output_path_without_ext,
         'noplaylist': True,
         'quiet': True,
     }
-    
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        # YouTube o'rniga SoundCloud'dan izlaymiz (blokirovkani aylanib o'tish uchun)
-        ydl.download([f"scsearch1:{query}"])
-        
+        if url_or_query.startswith('http'): ydl.download([url_or_query])
+        else: ydl.download([f"scsearch1:{url_or_query}"])
     return f"{output_path_without_ext}.mp3"
 
 def get_lyrics(query):
@@ -40,6 +48,5 @@ def get_lyrics(query):
             if lyrics_id:
                 lyrics_dict = ytmusic.get_lyrics(lyrics_id)
                 return lyrics_dict['lyrics']
-        except Exception:
-            return "Kechirasiz, bu qo'shiq matni topilmadi."
+        except: pass
     return "Kechirasiz, bu qo'shiq matni topilmadi."
