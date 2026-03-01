@@ -22,13 +22,11 @@ def download_music(query, output_path_without_ext):
         'outtmpl': output_path_without_ext,
         'noplaylist': True,
         'quiet': True,
-        # MANA SHU YERDA YOUTUBE UCHUN "ANDROID NIQOBI" QO'SHILDI
-        'extractor_args': {'youtube': ['client=android']},
-        'nocheckcertificate': True
     }
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([f"ytsearch1:{query}"])
+        # YouTube o'rniga SoundCloud'dan izlaymiz (blokirovkani aylanib o'tish uchun)
+        ydl.download([f"scsearch1:{query}"])
         
     return f"{output_path_without_ext}.mp3"
 
