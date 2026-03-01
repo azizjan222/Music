@@ -1,3 +1,6 @@
+[phases.system]
+aptPkgs = []
+
 [phases.setup]
 nixPkgs = ["...", "ffmpeg"]
 
