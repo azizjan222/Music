@@ -1,0 +1,6 @@
+aiogram==3.4.1
+ytmusicapi==1.5.4
+yt-dlp==2023.12.30
+shazamio==0.5.1
+pydub==0.25.1
+python-dotenv==1.0.1
