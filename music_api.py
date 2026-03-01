@@ -1,8 +1,11 @@
 import yt_dlp
 from ytmusicapi import YTMusic
+from yandex_music import Client
 from shazamio import Shazam
+import os
 
 ytmusic = YTMusic()
+ym_client = Client().init()
 
 async def recognize_song(file_path):
     shazam = Shazam()
@@ -11,42 +14,35 @@ async def recognize_song(file_path):
         return f"{out['track']['subtitle']} - {out['track']['title']}"
     return None
 
-def search_track_list(query, limit=30):
-    ydl_opts = {'extract_flat': True, 'quiet': True}
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
-            info = ydl.extract_info(f"scsearch{limit}:{query}", download=False)
-            if info and 'entries' in info:
-                results = []
-                for entry in info['entries']:
-                    results.append({'title': entry.get('title', 'Noma\'lum'), 'url': entry.get('url', '')})
-                return results
-        except Exception:
-            return []
-    return []
+def search_combined(query, limit=5):
+    all_results = []
+    try:
+        ym_search = ym_client.search(query)
+        if ym_search.tracks:
+            for track in ym_search.tracks.results[:limit]:
+                artists = ", ".join([a.name for a in track.artists])
+                all_results.append({'title': f"{artists} - {track.title}", 'url': f"ymtrack_{track.id}"})
+    except: pass
+    try:
+        yt_search = ytmusic.search(query, filter="songs")
+        for item in yt_search[:limit]:
+            all_results.append({'title': f"{item['artists'][0]['name']} - {item['title']}", 'url': f"https://music.youtube.com/watch?v={item['videoId']}"})
+    except: pass
+    return all_results
 
-def download_music(url_or_query, output_path_without_ext):
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
-        'outtmpl': output_path_without_ext,
-        'noplaylist': True,
-        'quiet': True,
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        if url_or_query.startswith('http'): ydl.download([url_or_query])
-        else: ydl.download([f"scsearch1:{url_or_query}"])
+def download_music(url_or_id, output_path_without_ext):
+    if url_or_id.startswith("ymtrack_"):
+        track_id = url_or_id.split("_")[1]
+        track = ym_client.tracks([track_id])[0]
+        track.download(f"{output_path_without_ext}.mp3", bitrate_in_kbps=192)
+    else:
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'postprocessors': [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3','preferredquality': '192'}],
+            'outtmpl': output_path_without_ext,
+            'quiet': True,
+            'extractor_args': {'youtube': ['client=android']},
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url_or_id])
     return f"{output_path_without_ext}.mp3"
-
-def get_lyrics(query):
-    search_results = ytmusic.search(query, filter="songs")
-    if search_results:
-        video_id = search_results[0]['videoId']
-        try:
-            watch_playlist = ytmusic.get_watch_playlist(videoId=video_id)
-            lyrics_id = watch_playlist.get('lyrics')
-            if lyrics_id:
-                lyrics_dict = ytmusic.get_lyrics(lyrics_id)
-                return lyrics_dict['lyrics']
-        except: pass
-    return "Kechirasiz, bu qo'shiq matni topilmadi."
