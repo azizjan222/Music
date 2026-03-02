@@ -1,4 +1,4 @@
-import asyncio, os, logging
+import asyncio, os, logging, re
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -17,17 +17,61 @@ bot = Bot(token=os.getenv("BOT_TOKEN"))
 dp = Dispatcher()
 
 USER_SEARCHES = {}
+URL_REGEX = re.compile(r'https?://\S+') # Ssilkalarni aniqlash uchun
 
 class AdminState(StatesGroup):
     waiting_for_broadcast = State()
 
-# TILLAR TOZALANDI (Kirill umuman yo'q qilingan)
-LANGS = {
-    'uz': {'welcome': "👋 Salom! Musiqa nomini yozing yoki ovoz yuboring.", 'search': "🔍 Qidirilmoqda...", 'not_found': "❌ Afsuski, topilmadi."},
-    'kr': {'welcome': "👋 Салом! Мусиқа номини ёзинг ёки овоз юборинг.", 'search': "🔍 Қидирилмоқда...", 'not_found': "❌ Афсуски, топилмади."},
-    'ru': {'welcome': "👋 Привет! Напишите название музыки или отправьте голосовое сообщение.", 'search': "🔍 Поиск...", 'not_found': "❌ Не найдено."},
-    'en': {'welcome': "👋 Hello! Send a song name or voice message.", 'search': "🔍 Searching...", 'not_found': "❌ Not found."}
-}
+# --- YANGILANGAN VA KENGAYTIRILGAN MATNLAR (418-rasmdagidek) ---
+def get_welcome_text(lang, bot_username):
+    texts = {
+        'uz': f"🔥 Assalomu alaykum. @{bot_username} ga Xush kelibsiz. Bot orqali quyidagilarni yuklab olishingiz mumkin:\n\n"
+              f"• **Instagram** - post va IGTV + audio bilan;\n"
+              f"• **TikTok** - suv belgisiz video + audio bilan;\n"
+              f"• **YouTube** - Videolar va shorts + audio bilan;\n"
+              f"• **Snapchat** - suv belgisiz video + audio bilan;\n"
+              f"• **Likee** - suv belgisiz video + audio bilan;\n"
+              f"• **Pinterest** - suv belgisiz video va rasmlar;\n"
+              f"• **Threads** - video va rasmlar + audio bilan;\n\n"
+              f"**Shazam funksiya:**\n"
+              f"• Qo'shiq nomi yoki ijrochi ismi\n"
+              f"• Qo'shiq matni\n"
+              f"• Ovozli xabar\n"
+              f"• Video\n"
+              f"• Audio\n"
+              f"• Video xabar\n\n"
+              f"🚀 Yuklab olmoqchi bo'lgan videoga havolani yuboring!\n"
+              f"😎 Bot guruhlarda ham ishlay oladi!",
+              
+        'kr': f"🔥 Ассалому алайкум. @{bot_username} га Хуш келибсиз. Бот орқали қуйидагиларни юклаб олишингиз мумкин:\n\n"
+              f"• **Instagram** - пост ва IGTV + аудио билан;\n"
+              f"• **TikTok** - сув белгисиз видео + аудио билан;\n"
+              f"• **YouTube** - Видеолар ва шортс + аудио билан;\n"
+              f"• **Snapchat** - сув белгисиз видео + аудио билан;\n"
+              f"• **Likee** - сув белгисиз видео + аудио билан;\n"
+              f"• **Pinterest** - сув белгисиз видео ва расмлар;\n"
+              f"• **Threads** - видео ва расмлар + аудио билан;\n\n"
+              f"**Шазам функцияси:**\n"
+              f"• Қўшиқ номи ёки ижрочи исми\n"
+              f"• Қўшиқ матни\n"
+              f"• Овозли хабар\n"
+              f"• Видео\n"
+              f"• Аудио\n"
+              f"• Видео хабар\n\n"
+              f"🚀 Юклаб олмоқчи бўлган видеога ҳаволани юборинг!\n"
+              f"😎 Бот гуруҳларда ҳам ишлай олади!",
+              
+        'ru': f"🔥 Здравствуйте! Добро пожаловать в @{bot_username}. Вы можете скачивать:\n\n"
+              f"• Instagram, TikTok, YouTube, Snapchat, Likee, Pinterest, Threads (видео и аудио без водяных знаков).\n\n"
+              f"**Функция Shazam:** распознает голосовые, видео, аудио сообщения и находит тексты песен.\n\n"
+              f"🚀 Отправьте ссылку на видео для скачивания!",
+              
+        'en': f"🔥 Hello! Welcome to @{bot_username}. You can download from:\n\n"
+              f"• Instagram, TikTok, YouTube, Snapchat, Likee, Pinterest, Threads (watermark-free).\n\n"
+              f"**Shazam Feature:** recognizes voice, video, audio, and finds lyrics.\n\n"
+              f"🚀 Send a link to download!"
+    }
+    return texts.get(lang, texts['uz'])
 
 def lang_keyboard():
     builder = InlineKeyboardBuilder()
@@ -38,16 +82,19 @@ def lang_keyboard():
     builder.adjust(2)
     return builder.as_markup()
 
+def get_start_group_kb(bot_username):
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Guruhga qo'shish ↩️", url=f"https://t.me/{bot_username}?startgroup=true")
+    return builder.as_markup()
+
+# MUSIQA TUGMALARI (Avvalgidek tartibli)
 def get_search_keyboard(user_id, page=0):
     results = USER_SEARCHES.get(user_id, {}).get('results', [])
     total_pages = (len(results) + 5) // 6
     builder = InlineKeyboardBuilder()
     start, end = page * 6, (page + 1) * 6
-    current_results = results[start:end]
-    
-    for i, _ in enumerate(current_results):
+    for i, _ in enumerate(results[start:end]):
         builder.button(text=str(i+1), callback_data=f"dl_{start+i}")
-    
     builder.adjust(5, 1) 
     builder.row(
         types.InlineKeyboardButton(text="⬅️", callback_data=f"p_{page-1}" if page > 0 else "noop"),
@@ -56,24 +103,22 @@ def get_search_keyboard(user_id, page=0):
     )
     return builder.as_markup()
 
-# YANGILANGAN: ASOSIY MUSIQA TUGMALARI
 def get_actions_kb(q_key, user_id, bot_name):
     favs = get_favorites(user_id)
     builder = InlineKeyboardBuilder()
-    builder.button(text="📝 Matn", callback_data=f"ly_{q_key}") # Chapda
-    builder.button(text="🎛 Effektlar", callback_data=f"effmenu_{q_key}") # O'ngda
+    builder.button(text="📝 Matn", callback_data=f"ly_{q_key}")
+    builder.button(text="🎛 Effektlar", callback_data=f"effmenu_{q_key}")
     builder.button(text="💔 Olib tashlash" if q_key in favs else "❤️ Saqlash", callback_data=f"fv_{q_key}")
     builder.button(text="➕ Guruhga qo'shish", url=f"https://t.me/{bot_name}?startgroup=true")
-    builder.adjust(2, 1, 1) # 2 ta tepada, 1 ta saqlash, 1 ta guruh
+    builder.adjust(2, 1, 1) 
     return builder.as_markup()
 
-# YANGILANGAN: IChKARI EFFEKTLAR MENYUSI
 def get_effects_kb(q_key):
     builder = InlineKeyboardBuilder()
     builder.button(text="🎧 8D", callback_data=f"8d_{q_key}")
     builder.button(text="🏟 Hall", callback_data=f"ch_{q_key}")
     builder.button(text="🐢 Slow", callback_data=f"sl_{q_key}")
-    builder.button(text="🔙 Orqaga", callback_data=f"back_{q_key}") # Qaytish tugmasi
+    builder.button(text="🔙 Orqaga", callback_data=f"back_{q_key}")
     builder.adjust(2, 1, 1)
     return builder.as_markup()
 
@@ -83,21 +128,25 @@ async def start(m: types.Message):
     if is_new and ADMIN_ID != 0:
         try: await bot.send_message(chat_id=ADMIN_ID, text="🎉 Yangi obunachi qo'shildi!")
         except: pass
+
     lang = get_lang(m.from_user.id)
-    if not lang: await m.answer("🇺🇿 Tilni tanlang\n🇷🇺 Выберите язык\n🇬🇧 Choose language:", reply_markup=lang_keyboard())
-    else: await m.answer(LANGS[lang]['welcome'])
+    if not lang:
+        await m.answer("🇺🇿 Tilni tanlang\n🇷🇺 Выберите язык\n🇬🇧 Choose language:", reply_markup=lang_keyboard())
+    else:
+        b = await bot.get_me()
+        await m.answer(get_welcome_text(lang, b.username), reply_markup=get_start_group_kb(b.username))
 
 @dp.callback_query(F.data.startswith("lang_"))
 async def set_user_lang(c: CallbackQuery):
     lang = c.data.split("_")[1]
     set_lang(c.from_user.id, lang)
-    await c.message.edit_text(LANGS[lang]['welcome'])
+    b = await bot.get_me()
+    await c.message.edit_text(get_welcome_text(lang, b.username), reply_markup=get_start_group_kb(b.username))
 
 @dp.message(Command("admin"))
 async def admin(m: types.Message):
     if m.from_user.id != ADMIN_ID: return
-    u, c = get_stats()
-    today_dl = get_daily_downloads()
+    u, c = get_stats(); today_dl = get_daily_downloads()
     kb = InlineKeyboardBuilder().button(text="📢 Xabar yuborish", callback_data="bc").as_markup()
     await m.answer(f"👮‍♂️ **Admin Panel**\n\n👥 Jami a'zolar: {u}\n🎵 Baza: {c}\n📈 Bugun yuklandi: {today_dl}", reply_markup=kb, parse_mode="Markdown")
 
@@ -112,26 +161,51 @@ async def bc_p(m: types.Message, s: FSMContext):
         except: pass
     await m.answer("✅ Xabar yuborildi!"); await s.clear()
 
-@dp.message(F.text | F.voice | F.audio)
-async def search(m: types.Message, state: FSMContext):
+# --- YANGI: BARCHA MEDIA VA SSILKALARNI QABUL QILISH ---
+@dp.message(F.text | F.voice | F.audio | F.video | F.video_note)
+async def handle_all_types(m: types.Message, state: FSMContext):
     if await state.get_state() == AdminState.waiting_for_broadcast.state: return
     if m.text and m.text.startswith("/"): return
-    
     lang = get_lang(m.from_user.id) or 'uz'
-    msg = await m.answer(LANGS[lang]['search'])
     
-    if m.voice or m.audio:
-        file_id = m.voice.file_id if m.voice else m.audio.file_id
+    # 1. AGAR SSILKA (LINK) BO'LSA - VIDEO YUKLAYDI
+    if m.text and URL_REGEX.match(m.text):
+        msg = await m.answer("⏳ Video yuklanmoqda. Iltimos, kuting...")
+        try:
+            temp_path = f"downloads/{m.from_user.id}_vid"
+            file_path, title = download_universal_video(m.text, temp_path)
+            b = await bot.get_me()
+            await bot.send_video(m.from_user.id, FSInputFile(file_path), caption=f"🎥 {title}\n🤖 @{b.username}")
+            os.remove(file_path)
+            increment_daily_download()
+            return await msg.delete()
+        except Exception as e:
+            return await msg.edit_text("❌ Ssilka orqali videoni yuklab bo'lmadi yoki yopiq profil.")
+            
+    # 2. AGAR MEDIA (OVOZ, VIDEO, KРУЖОК) BO'LSA - SHAZAM ISHLAYDI
+    if m.voice or m.audio or m.video or m.video_note:
+        msg = await m.answer("🎵 Shazam ishga tushdi, musiqa aniqlanmoqda...")
+        # Qaysi turdagi faylligini aniqlab ID sini olish
+        if m.voice: file_id = m.voice.file_id
+        elif m.audio: file_id = m.audio.file_id
+        elif m.video: file_id = m.video.file_id
+        else: file_id = m.video_note.file_id
+        
         file = await bot.get_file(file_id)
-        temp_path = f"downloads/{file_id}.ogg"
+        temp_path = f"downloads/{file_id}.ext"
         await bot.download_file(file.file_path, destination=temp_path)
+        
         query = await recognize_song(temp_path)
         os.remove(temp_path)
-        if not query: return await msg.edit_text(LANGS[lang]['not_found'])
-    else: query = m.text
+        if not query: return await msg.edit_text("❌ Qanday musiqa ekanligini aniqlay olmadim.")
+        await msg.edit_text("🔍 " + ("Qidirilmoqda..." if lang == 'uz' else "Поиск..."))
+    else: 
+        # 3. AGAR ODDIY MATN BO'LSA - QO'SHIQ QIDIRADI
+        query = m.text
+        msg = await m.answer("🔍 Qidirilmoqda..." if lang == 'uz' else "🔍 Поиск...")
         
     res = search_combined(query) 
-    if not res: return await msg.edit_text(LANGS[lang]['not_found'])
+    if not res: return await msg.edit_text("❌ Topilmadi." if lang == 'uz' else "❌ Не найдено.")
     
     USER_SEARCHES[m.from_user.id] = {'results': res, 'query': query, 'page': 0}
     await send_p(m.from_user.id, 0, msg)
@@ -152,7 +226,7 @@ async def dl(c: CallbackQuery):
     q_key = "".join(x for x in d['title'][:15] if x.isalnum()).lower()
     await c.message.edit_text(f"⏳ **{d['title']}** yuklanmoqda..."); b = await bot.get_me()
     
-    cached = get_cache(q_key); cap = f"🎧 Musiqa: {d['title']}\n\n🤖 @{b.username} orqali toping!🚀"
+    cached = get_cache(q_key); cap = f"🎧 Musiqa: {d['title']}\n\n🤖 @{b.username}"
     
     if cached:
         await bot.send_audio(c.from_user.id, cached, caption=cap, reply_markup=get_actions_kb(q_key, c.from_user.id, b.username))
@@ -177,7 +251,6 @@ async def fav(c: CallbackQuery):
     else: await c.answer("💔 Olib tashlandi!", show_alert=True)
     await c.message.edit_reply_markup(reply_markup=get_actions_kb(q_key, c.from_user.id, b.username))
 
-# TUGMANI ICHINI OCHISH VA YOPISH
 @dp.callback_query(F.data.startswith("effmenu_"))
 async def open_effects(c: CallbackQuery):
     q_key = c.data.replace("effmenu_", "")
@@ -188,16 +261,11 @@ async def close_effects(c: CallbackQuery):
     q_key = c.data.replace("back_", ""); b = await bot.get_me()
     await c.message.edit_reply_markup(reply_markup=get_actions_kb(q_key, c.from_user.id, b.username))
 
-# MATN VA EFFEKTLARNI YUKLASH
 @dp.callback_query(F.data.startswith(("8d_", "sl_", "ch_", "ly_")))
 async def effects(c: CallbackQuery):
     act, q_key = c.data.split("_", 1); await c.answer("⏳ Jarayonda..."); b = await bot.get_me()
     
-    # Matn qismi ishlashi:
     if act == "ly":
-        # Qaysi musiqani izlagan bo'lsa, o'shani nomini olamiz
-        title = get_cache(q_key) # Bazadan izlash (title saqlangani yo'q, shuning uchun pastda o'zgartirdim)
-        # Qidiruv ro'yxatidan qidirib topamiz
         query_for_lyrics = q_key 
         lyrics_text = get_lyrics_text(query_for_lyrics)
         return await c.message.reply(f"📝 **Qo'shiq matni:**\n\n{lyrics_text[:4000]}", parse_mode="Markdown")
