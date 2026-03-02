@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 
 def init_db():
     conn = sqlite3.connect('bot_data.db')
@@ -10,6 +11,8 @@ def init_db():
                         title TEXT, 
                         download_count INTEGER DEFAULT 1)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS favorites (user_id INTEGER, query_key TEXT, UNIQUE(user_id, query_key))''')
+    # YANGI: Kunlik statistika uchun jadval
+    cursor.execute('''CREATE TABLE IF NOT EXISTS daily_stats (date TEXT PRIMARY KEY, count INTEGER DEFAULT 0)''')
     conn.commit()
     conn.close()
 
@@ -17,8 +20,25 @@ def add_user(user_id):
     conn = sqlite3.connect('bot_data.db')
     cursor = conn.cursor()
     cursor.execute('INSERT OR IGNORE INTO users (user_id) VALUES (?)', (user_id,))
+    is_new = cursor.rowcount > 0
     conn.commit()
     conn.close()
+    return is_new
+
+def set_lang(user_id, lang):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('UPDATE users SET lang = ? WHERE user_id = ?', (lang, user_id))
+    conn.commit()
+    conn.close()
+
+def get_lang(user_id):
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT lang FROM users WHERE user_id = ?', (user_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result and result[0] else None
 
 def get_stats():
     conn = sqlite3.connect('bot_data.db')
@@ -86,3 +106,22 @@ def get_favorites(user_id):
     favs = [row[0] for row in cursor.fetchall()]
     conn.close()
     return favs
+
+# ================= YANGI FUNKSIYALAR =================
+def increment_daily_download():
+    today = datetime.now().strftime('%Y-%m-%d')
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT OR IGNORE INTO daily_stats (date, count) VALUES (?, 0)', (today,))
+    cursor.execute('UPDATE daily_stats SET count = count + 1 WHERE date = ?', (today,))
+    conn.commit()
+    conn.close()
+
+def get_daily_downloads():
+    today = datetime.now().strftime('%Y-%m-%d')
+    conn = sqlite3.connect('bot_data.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT count FROM daily_stats WHERE date = ?', (today,))
+    result = cursor.fetchone()
+    conn.close()
+    return result[0] if result else 0
