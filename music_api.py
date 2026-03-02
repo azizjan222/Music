@@ -14,7 +14,6 @@ async def recognize_song(file_path):
         return f"{out['track']['subtitle']} - {out['track']['title']}"
     return None
 
-# LIMITNI 50 TA QILDIM (Ko'proq qo'shiq topadi)
 def search_combined(query, limit=50):
     all_results = []
     try:
@@ -48,7 +47,6 @@ def download_music(url_or_id, output_path_without_ext):
             ydl.download([url_or_id])
     return f"{output_path_without_ext}.mp3"
 
-# YANGI: QO'SHIQ MATNINI TOPISH FUNKSIYASI
 def get_lyrics_text(query):
     try:
         results = ytmusic.search(query, filter="songs")
@@ -58,6 +56,18 @@ def get_lyrics_text(query):
             if 'lyrics' in watch and watch['lyrics']:
                 lyrics = ytmusic.get_lyrics(watch['lyrics'])
                 return lyrics['lyrics']
-    except:
-        pass
+    except: pass
     return "❌ Uzr, bu qo'shiqning matni internet bazalaridan topilmadi."
+
+# YANGI: TIKTOK, INSTA, YOUTUBE videolarni tortuvchi asbob
+def download_universal_video(url, output_path):
+    ydl_opts = {
+        'format': 'best',
+        'outtmpl': output_path + '.%(ext)s',
+        'quiet': True,
+        'noplaylist': True,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=True)
+        filename = ydl.prepare_filename(info)
+        return filename, info.get('title', 'Video')
