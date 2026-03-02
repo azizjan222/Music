@@ -14,7 +14,8 @@ async def recognize_song(file_path):
         return f"{out['track']['subtitle']} - {out['track']['title']}"
     return None
 
-def search_combined(query, limit=5):
+# LIMITNI 50 TA QILDIM (Ko'proq qo'shiq topadi)
+def search_combined(query, limit=50):
     all_results = []
     try:
         ym_search = ym_client.search(query)
@@ -46,3 +47,17 @@ def download_music(url_or_id, output_path_without_ext):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url_or_id])
     return f"{output_path_without_ext}.mp3"
+
+# YANGI: QO'SHIQ MATNINI TOPISH FUNKSIYASI
+def get_lyrics_text(query):
+    try:
+        results = ytmusic.search(query, filter="songs")
+        if results:
+            vid = results[0]['videoId']
+            watch = ytmusic.get_watch_playlist(videoId=vid)
+            if 'lyrics' in watch and watch['lyrics']:
+                lyrics = ytmusic.get_lyrics(watch['lyrics'])
+                return lyrics['lyrics']
+    except:
+        pass
+    return "❌ Uzr, bu qo'shiqning matni internet bazalaridan topilmadi."
